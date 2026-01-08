@@ -182,17 +182,17 @@ class HeterogeneousHyperedgeBuilder(nn.Module):
     
     def build_freq_coherence_hyperedges(self, freq_nodes):
         """Connect frequency nodes with similar patterns"""
-        B, F, D = freq_nodes.shape
+        B, n_freq, D = freq_nodes.shape
         
         hyperedge_emb = repeat(
-            self.freq_coherence_hyperedge_encoder[:F],
+            self.freq_coherence_hyperedge_encoder[:n_freq],
             'F D -> B F D',
             B=B
         )
         
         # Compute pairwise similarity
         freq_norm = F.normalize(freq_nodes, dim=-1)
-        similarity = torch.bmm(freq_norm, freq_norm.transpose(1, 2))  # (B, F, F)
+        similarity = torch.bmm(freq_norm, freq_norm.transpose(1, 2))  # (B, n_freq, n_freq)
         
         # Incidence: connect nodes with high similarity
         incidence = (similarity > self.config.similarity_threshold).float()
