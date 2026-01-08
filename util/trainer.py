@@ -15,7 +15,69 @@ from models.InfoTS import InfoTS
 from train.config import build_flag
 from util.scheduler import WarmupCosineSchedule
 
-AVAILABLE_TARGETS = ["FEI", "SimMTM", "TimeDRL", "InfoTS"]
+from models.H2SCAN import H2SCAN, H2SCANConfig
+
+
+AVAILABLE_TARGETS = ["FEI", "SimMTM", "TimeDRL", "InfoTS", "H2SCAN"]
+
+
+def build_h2scan_model(config: H2SCANConfig):
+    """Build H2SCAN model with proper configuration"""
+    config.model_flag = build_flag("H2SCAN", preTrain=config.pretrain_dataset)
+    model = H2SCAN(config)
+    return model
+
+
+def pre_train_h2scan(config: H2SCANConfig):
+    """Pre-train H2SCAN model"""
+    model = build_h2scan_model(config)
+    
+    # Load data
+    pre_train_data = cls_data.DefaultGenerator(
+        cls_data.DatasetName.__members__[config.pretrain_dataset],
+        flag='train',
+        x_len=config.pretrain_sample_length
+    )
+    val_data = cls_data.DefaultGenerator(
+        cls_data.DatasetName.__members__[config.pretrain_dataset],
+        flag='val',
+        x_len=config.pretrain_sample_length
+    )
+    
+    model.prepare_data(
+        pre_train_data,
+        eval_set=val_data,
+        eval_shuffle=True,
+        batch_size=config.pretrain_batch_size,
+        num_workers=config.pretrain_num_workers
+    )
+    
+    # Optimizer
+    optimizer = torch.optim.AdamW(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=config.pretrain_lr,
+        weight_decay=1e-5
+    )
+    
+    # Learning rate scheduler
+    lr_sch = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer=optimizer,
+        T_max=config.pretrain_epoch,
+        eta_min=1e-6
+    )
+    
+    # Train
+    model.train_model(
+        epoch=config.pretrain_epoch,
+        criterion=nn.MSELoss(),  # Not actually used, using contrastive loss
+        optimizer=optimizer,
+        lr_schedular=lr_sch,
+        early_stop=config.pretrain_early_stop,
+        amp=config.amp,
+        auto_test=False
+    )
+    
+    return model
 
 
 def build_pretrain_model(config: PretrainConfig,
@@ -37,6 +99,16 @@ def build_pretrain_model(config: PretrainConfig,
         config.model_flag = build_flag("InfoTS",
                                        preTrain=config.pretrain_dataset)
         model = InfoTS(config)
+    elif target == "H2SCAN":
+        if not isinstance(config, H2SCANConfig):
+            # Convert to H2SCANConfig if needed
+            h2scan_config = H2SCANConfig()
+            h2scan_config.pretrain_dataset = config.pretrain_dataset
+            h2scan_config.pretrain_sample_length = config.pretrain_sample_length
+            h2scan_config.pretrain_batch_size = config.pretrain_batch_size
+            h2scan_config.device = config.device
+            config = h2scan_config
+        model = build_h2scan_model(config)
     else:
         raise NotImplementedError("Unknown target pretrain method {}.".format(target))
     return model
