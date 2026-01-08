@@ -121,3 +121,32 @@ class DownstreamConfig_reg(FineTuneConfig):
     def __init__(self):
         super(DownstreamConfig_reg, self).__init__()
         self.finetune_dataset = "FD001"
+
+
+class H2SCANConfig(PretrainConfig):
+    def __init__(self):
+        super(H2SCANConfig, self).__init__()
+        # Hypergraph specific parameters
+        self.n_hypergraph_layers = 3
+        self.n_attention_heads = 4
+        self.node_types = ['time', 'freq', 'stat']
+        self.hyperedge_types = ['temporal', 'freq_coherence', 'cross_domain']
+        
+        # Frequency decomposition
+        self.n_freq_bands = 8
+        
+        # Statistical features
+        self.n_stat_features = 5
+        
+        # Contrastive learning
+        self.temperature = 0.07
+        self.similarity_threshold = 0.5
+        
+        # Meta-learning
+        self.use_meta_learning = True
+        self.meta_hidden_dim = 64
+        
+        # Training specific
+        self.pretrain_lr = 0.0005
+        self.pretrain_epoch = 150
+        self.pretrain_early_stop = 10
